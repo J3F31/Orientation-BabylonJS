@@ -4,9 +4,18 @@ var engine = new BABYLON.Engine(canvas, true);
 
 var scene = CreateScene();
 var camera = CreateCamera();
-var light = CreateLight();
 var wall = CreateWall();
-var horse = CreateHorse().then((mesh) => {
+var light = CreateLight();
+var arrows = CreateArrows();
+var shadowLight = CreateShadowLight();
+var shadowGen = CreateShadowGen();
+var statue = CreateHorse().then((mesh) => {
+  mesh.getChildren().forEach((mesh) => {
+    shadowLight.excludedMeshes.push(mesh);
+    shadowGen.addShadowCaster(mesh);
+  });
+  var horse = mesh.getChildren()[0];
+  var base = mesh.getChildren()[1];
   var mousePosX = 0;
   var mouseClicked = false;
 
@@ -22,9 +31,9 @@ var horse = CreateHorse().then((mesh) => {
   
     var step = dx * .008;
 
-    mesh.rotation.y -= step;
-
-    console.log(mesh.rotation)
+    
+    horse.rotation.y -= step;
+    base.rotation.y -= step;
 
     mousePosX = event.clientX;
   })
@@ -52,9 +61,11 @@ function CreateScene() {
 }
 
 function CreateCamera() {
-  var camera = new BABYLON.ArcRotateCamera("Camera", 0, Math.PI / 3, 1, BABYLON.Vector3(0, 0, 0), scene);
-	camera.attachControl(canvas, true);
+  var camera = new BABYLON.ArcRotateCamera("Camera", 0, Math.PI/2 - .5, 0, BABYLON.Vector3(0, 0, 0), scene);
+  camera.position = new BABYLON.Vector3(1, 0, 0);
+	//camera.attachControl(canvas, true);
 
+  camera.radius = .6;
   //camera.upperBetaLimit = Math.PI / 2;  
   //camera.lowerBetaLimit = Math.PI / 2;
 
@@ -66,50 +77,24 @@ function CreateCamera() {
 
 function CreateLight() {
   var hemiLight = new BABYLON.HemisphericLight("hemiLight", new BABYLON.Vector3(0, 1, 0), scene);
-  hemiLight.intensity = 0;
+  hemiLight.intensity = 1;
+
+  hemiLight.excludedMeshes.push(wall);
 
   return hemiLight;
 }
 
 async function CreateHorse() {
-  var model = await BABYLON.SceneLoader.ImportMeshAsync("", "./models/", "horse.glb", scene);
-  model.position = new BABYLON.Vector3.Zero();
+  var model = await BABYLON.SceneLoader.ImportMeshAsync("", "./models/", "horse.glb");
+  model.meshes[0].getChildren()[0].position = new BABYLON.Vector3(0, -.1, 0);
 
-  var material = new BABYLON.StandardMaterial("matHorse", scene);
-  material.diffuseTexture = new BABYLON.Texture("textures/texture.jpg", scene);
-
-  var color = new BABYLON.StandardMaterial("matBase", scene);
-  color.diffuseColor = new BABYLON.Color4(0.1, 0.1, 0.1, 1);
-
-  model.meshes[1].material = material;
-  model.meshes[2].material = color;
-
-  var mesh = model.meshes[1];
-
-  var spotLight = new BABYLON.SpotLight("spotLight", new BABYLON.Vector3(3, 0, 0), new BABYLON.Vector3(-1, 0, 0), Math.PI/2, 100, scene);
-
-  spotLight.intensity = 10;
-
-  spotLight.shadowEnabled = true;
-  //spotLight.shadowMinZ = 1;
-  //spotLight.shadowMaxZ = 10;
-
-  var shadowGen = new BABYLON.ShadowGenerator(2048, spotLight);
-  shadowGen.useBlurCloseExponentialShadowMap = true;
-
-  model.meshes.forEach(mesh => {
-    mesh.receiveShadows = true;
-    shadowGen.addShadowCaster(mesh);
-  });
-  //wall.receiveShadows = true;
-  shadowGen.addShadowCaster(wall);
-  console.log(shadowGen)
+  var mesh = model.meshes[0].getChildren()[0];
 
   return mesh;
 }
 
 function CreateWall() {
-  var mesh = BABYLON.MeshBuilder.CreatePlane("ground", {width: 3, height: 3}, this.scene);
+  var mesh = BABYLON.MeshBuilder.CreatePlane("wall", {width: 3, height: 3}, this.scene);
 
   var material = new BABYLON.StandardMaterial("matWall", scene);
   material.diffuseColor = new BABYLON.Color4(1, 1, 1, 1);
@@ -122,6 +107,48 @@ function CreateWall() {
   mesh.receiveShadows = true;
 
   return mesh;
+}
+
+function CreateShadowLight() {
+  var shadowLight = new BABYLON.DirectionalLight("shadowLight", new BABYLON.Vector3(-1, -0.05, -0.4), scene);
+  shadowLight.position = new BABYLON.Vector3(3, 0, 3);
+  shadowLight.intensity = 3;
+
+  return shadowLight;
+}
+
+function CreateShadowGen() {
+	var shadowGenerator = new BABYLON.ShadowGenerator(4096, shadowLight);
+	shadowGenerator.useBlurExponentialShadowMap = true;
+  shadowGenerator.useKernelBlur = true;
+  shadowGenerator.blurKernel = 16;
+  
+  return shadowGenerator;
+}
+
+async function CreateArrows() {
+  var model = await BABYLON.SceneLoader.ImportMeshAsync("", "./models/", "arrow.glb");
+
+  var mat = new BABYLON.StandardMaterial("arrowMat", scene);
+  mat.emissiveColor = new BABYLON.Color4(.8, .8, .8, 1);
+  mat.alpha = .5;
+  mat.disableLighting = true;
+
+  var left = model.meshes[1];
+  left.material = mat;
+  left.position = new BABYLON.Vector3(-.1, -.1, -.08)
+  left.rotation = new BABYLON.Vector3(ToRadians(60), ToRadians(65), ToRadians(-120));
+  left.scaling = new BABYLON.Vector3(.005, .005, .005);
+
+  var right = left.clone("Arrow2");
+  right.position = new BABYLON.Vector3(-.1, -.1, .08)
+  right.rotation = new BABYLON.Vector3(ToRadians(-60), ToRadians(-65), ToRadians(-120));
+
+  return model;
+}
+
+function ToRadians(deg) {
+  return (deg * Math.PI)/180
 }
 
 //Inspector
